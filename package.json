@@ -1,0 +1,13 @@
+{
+  "name": "ajtbd",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter @ajtbd/api dev",
+    "dev:web": "bun run --filter @ajtbd/web dev",
+    "test": "bun test",
+    "migrate": "bun run --filter @ajtbd/api migrate"
+  }
+}
