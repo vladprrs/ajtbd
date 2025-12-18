@@ -1,0 +1,356 @@
+# AJTBD Development Plan
+
+## Overview
+
+Job Graph Generator v5 — AI-powered tool for breaking down Jobs-to-be-Done into hierarchical structures with phases, cadences, and solutions.
+
+**Stack:** Bun + SQLite | AI SDK 6 (OpenAI) | React + ai-elements
+
+---
+
+## Phase 1: Foundation
+
+Database repository layer and basic CRUD operations.
+
+- [ ] **Repository base class** — Generic CRUD with transaction support (depends on: schemas)
+  - Acceptance: `BaseRepo<T>` with `create`, `findById`, `update`, `delete`, `findMany`
+  - All operations wrapped in transactions
+  - Proper snake_case ↔ camelCase mapping
+
+- [ ] **Graph repository** — Full CRUD for graphs table (depends on: repo base)
+  - Acceptance: `GraphRepo` with all CRUD + `findBySegment`
+  - Input validation via Zod schemas
+  - Returns typed `Graph` objects
+
+- [ ] **Job repository** — CRUD with hierarchy support (depends on: repo base)
+  - Acceptance: `JobRepo` with CRUD + `findByGraphId`, `findByParentId`, `findByLevel`
+  - Bulk insert for AI-generated jobs
+  - Sort order management
+
+- [ ] **Solution/Edge repositories** — Supporting entity CRUD (depends on: repo base)
+  - Acceptance: `SolutionRepo`, `EdgeRepo` with full CRUD
+  - Cascade-aware operations
+
+- [ ] **Basic routes setup** — Express-style router for Bun.serve (depends on: repos)
+  - Acceptance: Router utility with path params, query parsing
+  - `POST /api/graphs`, `GET /api/graphs/:id`, `DELETE /api/graphs/:id`
+  - Proper error responses with `{ error: { code, message } }`
+
+---
+
+## Phase 2: Graph Engine
+
+Core business logic for job hierarchy validation and view generation.
+
+- [ ] **Validation engine** — Enforce domain rules (depends on: job repo)
+  - Acceptance: `validateGraph(graphId)` returns `{ valid, errors[] }`
+  - Rules: 1st person formulation, infinitive labels, no "and", phase/cadence required
+  - Job count validation (8-12 small, 3-6 micro per parent)
+
+- [ ] **Normalization utilities** — Fix common AI output issues (depends on: validation)
+  - Acceptance: `normalizeJob(job)` fixes formulation prefix, label format
+  - Auto-trim, case normalization
+  - Idempotent operations
+
+- [ ] **Graph view: ui_v1** — Timeline-ready JSON structure (depends on: job repo)
+  - Acceptance: `GET /api/graphs/:id/view?mode=ui_v1`
+  - Returns `{ graph, jobs: { before: [], during: [], after: [] }, stats }`
+  - Nested micro jobs under small jobs
+
+- [ ] **Graph view: mermaid** — Export as Mermaid flowchart (depends on: job repo, edge repo)
+  - Acceptance: `GET /api/graphs/:id/view?mode=mermaid`
+  - Returns valid Mermaid syntax with job hierarchy
+  - Edge types as arrow styles
+
+---
+
+## Phase 3: AI Integration
+
+AI SDK setup and tool definitions for job generation.
+
+- [ ] **AI SDK configuration** — OpenAI provider setup (depends on: none)
+  - Acceptance: `ai/config.ts` with model selection, API key from env
+  - Temperature/token settings per use case
+  - Error handling for API failures
+
+- [ ] **System prompts** — Domain-aware prompts for job generation (depends on: none)
+  - Acceptance: `ai/prompts/` with `systemPrompt`, `smallJobsPrompt`, `microJobsPrompt`
+  - Embed domain rules (1st person, phases, cadence)
+  - Language-aware (support `language` param)
+
+- [ ] **Tool: graph_create** — Initialize graph with core job (depends on: graph repo, prompts)
+  - Acceptance: Creates graph + big job + core job records
+  - Zod schema for tool params
+  - Returns created graph ID
+
+- [ ] **Tool: small_jobs_generate** — Generate 8-12 small jobs (depends on: job repo, prompts)
+  - Acceptance: `generateText` call with structured output
+  - Creates jobs with phase, cadence, formulation, label
+  - Links to core job as parent
+
+- [ ] **Tool: micro_jobs_generate** — Generate 3-6 micro jobs per small job (depends on: job repo)
+  - Acceptance: Takes `smallJobId`, generates micro jobs
+  - Inherits phase from parent
+  - Maintains sort order
+
+---
+
+## Phase 4: Streaming API
+
+Real-time chat endpoint with tool execution events.
+
+- [ ] **Chat endpoint setup** — `/api/chat` with data streams (depends on: AI config)
+  - Acceptance: `POST /api/chat` accepts `{ messages, graphId? }`
+  - Returns data stream (not text stream)
+  - Proper SSE headers and CORS
+
+- [ ] **Tool orchestration** — Execute tools during stream (depends on: all AI tools)
+  - Acceptance: Tools called via `streamText` with `tools` param
+  - Tool results included in stream
+  - Error recovery without stream termination
+
+- [ ] **Tool event protocol** — Structured events for UI (depends on: chat endpoint)
+  - Acceptance: Events: `tool_call_start`, `tool_call_result`, `graph_updated`
+  - UI can track tool execution progress
+  - Graph ID included in relevant events
+
+- [ ] **Session context** — Maintain graph context across messages (depends on: chat endpoint)
+  - Acceptance: `graphId` persists in conversation
+  - Tools operate on current graph
+  - Clear context on new graph creation
+
+---
+
+## Phase 5: React UI Foundation
+
+Basic React app with chat integration.
+
+- [ ] **Vite + React setup** — Configure apps/web (depends on: none)
+  - Acceptance: `bun run dev:web` starts on port 5173
+  - TypeScript, path aliases configured
+  - Proxy to API on 3001
+
+- [ ] **ai-elements integration** — Install shadcn/ui chat components (depends on: Vite setup)
+  - Acceptance: Chat UI components available
+  - Tailwind configured
+  - Dark mode support
+
+- [ ] **useChat hook setup** — Connect to `/api/chat` (depends on: ai-elements, streaming API)
+  - Acceptance: Messages stream in real-time
+  - Tool calls visible in UI
+  - Error states handled
+
+- [ ] **Basic layout** — App shell with chat panel (depends on: ai-elements)
+  - Acceptance: Responsive layout with sidebar
+  - Chat takes primary focus
+  - Clean, minimal design
+
+---
+
+## Phase 6: Graph UI
+
+Visual job timeline and detail views.
+
+- [ ] **JobTimeline component** — Phase-based job display (depends on: ui_v1 view)
+  - Acceptance: Three columns: before/during/after
+  - Jobs as cards with label, cadence icon
+  - Expandable to show micro jobs
+
+- [ ] **Job detail panel** — Full job information (depends on: JobTimeline)
+  - Acceptance: Click job → slide-out panel
+  - Shows formulation, scores, solutions
+  - Edit capability (future)
+
+- [ ] **Score display** — userCost/userBenefit visualization (depends on: detail panel)
+  - Acceptance: Visual bars or gauges for 1-10 scores
+  - Rationale text displayed
+  - Color coding (high cost = red, high benefit = green)
+
+- [ ] **Real-time updates** — Graph changes reflect immediately (depends on: tool events)
+  - Acceptance: New jobs appear without refresh
+  - Optimistic UI updates
+  - Loading states during generation
+
+---
+
+## Phase 7: Refinement
+
+Validation, autofix, and edge case handling.
+
+- [ ] **Autofix endpoint** — Auto-correct validation errors (depends on: validation engine)
+  - Acceptance: `POST /api/graphs/:id/validate?autofix=1`
+  - Fixes formulation prefix, label format
+  - Returns diff of changes made
+
+- [ ] **Job manipulation tools** — Update, insert, reorder (depends on: job repo)
+  - Acceptance: `job_update`, `job_insert_after`, `job_reorder` tools
+  - Maintain sort order integrity
+  - Validate after changes
+
+- [ ] **Error boundaries** — Graceful failure handling (depends on: all UI)
+  - Acceptance: API errors show user-friendly messages
+  - Stream interruptions recoverable
+  - Retry mechanisms for transient failures
+
+- [ ] **Edge case handling** — Empty states, limits (depends on: all features)
+  - Acceptance: Empty graph state
+  - Max job limits enforced
+  - Duplicate detection
+
+---
+
+## Phase 8: Polish
+
+Production readiness features.
+
+- [ ] **Request logging** — Structured logs for debugging (depends on: routes)
+  - Acceptance: Request ID, duration, status logged
+  - AI API calls logged (tokens, latency)
+  - Log level configuration
+
+- [ ] **Rate limiting** — Protect AI endpoints (depends on: chat endpoint)
+  - Acceptance: Per-IP rate limits on `/api/chat`
+  - Configurable limits via env
+  - 429 responses with retry-after
+
+- [ ] **TypeScript strict mode** — Full type coverage (depends on: all code)
+  - Acceptance: `bun run typecheck` passes
+  - No `any` types except explicit escapes
+  - Strict null checks
+
+- [ ] **API documentation** — OpenAPI spec (depends on: all routes)
+  - Acceptance: `docs/api.yaml` with all endpoints
+  - Request/response schemas
+  - Example payloads
+
+- [ ] **DevTools integration** — Debug utilities (depends on: UI)
+  - Acceptance: Graph state inspector
+  - AI prompt viewer
+  - Network request panel
+
+---
+
+## Milestones
+
+### MVP (Phases 1-4)
+Functional job graph generation via chat interface.
+
+**Includes:**
+- Create graph with segment + core job
+- Generate 8-12 small jobs automatically
+- View jobs in timeline format (ui_v1)
+- Basic chat interaction with tool execution
+- Data persisted in SQLite
+
+**Does not include:**
+- React UI (API-only, testable via curl/Postman)
+- Micro job generation
+- Score calculation
+- Autofix
+
+### Beta (Phases 1-6)
+Full UI with job visualization.
+
+**Adds:**
+- React chat interface
+- JobTimeline component
+- Real-time updates
+- Micro job generation
+- Detail panel
+
+### Full (Phases 1-8)
+Production-ready application.
+
+**Adds:**
+- Validation and autofix
+- Job manipulation tools
+- Rate limiting and logging
+- Full documentation
+- DevTools
+
+---
+
+## Technical Risks
+
+### 1. AI SDK Beta Instability
+**Risk:** AI SDK 6 is in beta; APIs may change between versions.
+**Impact:** Breaking changes could require significant refactoring.
+**Mitigation:**
+- Pin exact versions in package.json (`"ai": "4.3.0"`)
+- Wrap AI SDK calls in abstraction layer (`ai/config.ts`)
+- Monitor AI SDK changelog and GitHub issues
+- Have fallback to `generateText` if streaming breaks
+
+### 2. Streaming Complexity
+**Risk:** Data streams with tool execution are complex; edge cases around interruption, reconnection, and error handling.
+**Impact:** Poor UX if streams fail silently or lose data.
+**Mitigation:**
+- Implement heartbeat/keepalive in stream
+- Client-side reconnection logic with message deduplication
+- Server-side stream timeout handling
+- Comprehensive error events in protocol
+
+### 3. Prompt Quality / Output Consistency
+**Risk:** LLM outputs may not consistently follow domain rules (1st person, phases, etc.).
+**Impact:** Invalid jobs requiring manual correction; poor user experience.
+**Mitigation:**
+- Structured output with Zod schemas (AI SDK native support)
+- Post-generation validation + normalization
+- Autofix for common issues
+- Few-shot examples in prompts
+- Temperature tuning per operation
+
+### 4. SQLite Concurrency
+**Risk:** SQLite has limited concurrent write support; multiple chat sessions could conflict.
+**Impact:** Database locks, failed writes, data loss.
+**Mitigation:**
+- WAL mode enabled (already in db/index.ts)
+- All writes in transactions
+- Retry logic for SQLITE_BUSY errors
+- Consider per-graph locking for heavy operations
+
+### 5. Context Window Limits
+**Risk:** Long chat sessions may exceed model context limits.
+**Impact:** Lost context, degraded responses, API errors.
+**Mitigation:**
+- Implement conversation summarization
+- Limit message history sent to API
+- Store full history in DB, send condensed version
+- Clear context on new graph creation
+
+---
+
+## Dependencies Graph
+
+```
+Phase 1 (Foundation)
+    ↓
+Phase 2 (Graph Engine) ←──────┐
+    ↓                         │
+Phase 3 (AI Integration) ─────┤
+    ↓                         │
+Phase 4 (Streaming API) ──────┘
+    ↓
+Phase 5 (React UI) ← Phase 4
+    ↓
+Phase 6 (Graph UI) ← Phase 2, 5
+    ↓
+Phase 7 (Refinement) ← Phase 2, 3, 6
+    ↓
+Phase 8 (Polish) ← All
+```
+
+---
+
+## Quick Reference
+
+| Phase | Focus | Key Deliverable |
+|-------|-------|-----------------|
+| 1 | Foundation | Repository layer + basic routes |
+| 2 | Graph Engine | Validation + ui_v1 view |
+| 3 | AI Integration | Job generation tools |
+| 4 | Streaming API | /api/chat with data streams |
+| 5 | React UI | Chat interface with useChat |
+| 6 | Graph UI | JobTimeline + detail panel |
+| 7 | Refinement | Autofix + error handling |
+| 8 | Polish | Logging, rate limits, docs |
