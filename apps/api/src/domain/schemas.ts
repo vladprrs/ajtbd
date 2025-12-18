@@ -49,11 +49,22 @@ export type GraphInput = z.infer<typeof GraphInput>;
 // Graph (full entity)
 export const Graph = z.object({
   id: z.string(),
-  segment: z.string(),
-  coreJob: z.string(),
-  bigJob: z.string().nullable(),
   language: z.string(),
-  options: z.record(z.unknown()).nullable(),
+  inputJson: z.object({
+    segment: z.string(),
+    coreJob: z.string(),
+    bigJob: z.string().optional(),
+    language: z.string().optional(),
+    options: z
+      .object({
+        generateSmallJobs: z.boolean().optional(),
+        smallJobCount: z.number().int().min(8).max(12).optional(),
+      })
+      .optional(),
+  }),
+  coreJobId: z.string(),
+  bigJobId: z.string().nullable(),
+  warningsJson: z.array(z.string()).nullable(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });

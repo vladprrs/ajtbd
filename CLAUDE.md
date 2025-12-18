@@ -51,6 +51,7 @@ apps/web/src/
 - Streaming: use **data streams** (not text streams) for tool calls/events
 - Error format: `{ error: { code, message, details? } }`
 - Pin AI SDK versions (beta API)
+- Repos in `db/repos/`, extend BaseRepo, export singletons
 
 ## Key Endpoints
 - `POST /api/graphs` - create graph + generate small jobs
