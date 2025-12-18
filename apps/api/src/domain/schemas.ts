@@ -81,12 +81,12 @@ export const Job = z.object({
   phase: Phase,
   cadence: Cadence,
   cadenceHint: z.string().nullable(),
-  when: z.string().nullable(),
+  whenText: z.string().nullable(), // matches when_text column
   want: z.string().nullable(),
   soThat: z.string().nullable(),
   suggestedNext: z.string().nullable(),
-  scores: JobScores.nullable(),
-  sortOrder: z.number().default(0),
+  scoresJson: JobScores.nullable(), // matches scores_json column
+  sortOrder: z.number(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -102,11 +102,11 @@ export const JobInput = z.object({
   phase: Phase,
   cadence: Cadence,
   cadenceHint: z.string().optional(),
-  when: z.string().optional(),
+  whenText: z.string().optional(),
   want: z.string().optional(),
   soThat: z.string().optional(),
   suggestedNext: z.string().optional(),
-  scores: JobScores.optional(),
+  scoresJson: JobScores.optional(),
   sortOrder: z.number().optional(),
 });
 export type JobInput = z.infer<typeof JobInput>;

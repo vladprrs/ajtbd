@@ -1,4 +1,5 @@
 import { db, runMigrations } from "./db";
+import { handleRequest, healthCheck, notFound } from "./routes";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173").split(
@@ -25,23 +26,24 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   return headers;
 }
 
-function jsonResponse(
-  data: unknown,
-  status = 200,
-  origin: string | null = null
-): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      ...getCorsHeaders(origin),
-    },
+function addCorsHeaders(response: Response, origin: string | null): Response {
+  const corsHeaders = getCorsHeaders(origin);
+  const newHeaders = new Headers(response.headers);
+
+  for (const [key, value] of Object.entries(corsHeaders)) {
+    newHeaders.set(key, value);
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
   });
 }
 
 const server = Bun.serve({
   port: PORT,
-  fetch(req) {
+  async fetch(req) {
     const url = new URL(req.url);
     const origin = req.headers.get("Origin");
 
@@ -55,20 +57,17 @@ const server = Bun.serve({
 
     // Health check endpoint
     if (url.pathname === "/health" && req.method === "GET") {
-      return jsonResponse({ ok: true }, 200, origin);
+      return addCorsHeaders(healthCheck(), origin);
+    }
+
+    // Try registered routes
+    const response = await handleRequest(req);
+    if (response) {
+      return addCorsHeaders(response, origin);
     }
 
     // 404 for unmatched routes
-    return jsonResponse(
-      {
-        error: {
-          code: "NOT_FOUND",
-          message: `Route not found: ${req.method} ${url.pathname}`,
-        },
-      },
-      404,
-      origin
-    );
+    return addCorsHeaders(notFound(url.pathname, req.method), origin);
   },
 });
 
