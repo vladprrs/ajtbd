@@ -6,35 +6,67 @@ Job Graph Generator v5 — AI-powered tool for breaking down Jobs-to-be-Done int
 
 **Stack:** Bun + SQLite | AI SDK 6 (OpenAI) | React + ai-elements
 
+## Implementation Status
+
+**Last Updated:** 2024
+
+### Overall Progress
+- ✅ **Phase 1: Foundation** — Complete (5/5)
+- ✅ **Phase 2: Graph Engine** — Complete (4/4)
+- ⚠️ **Phase 3: AI Integration** — Partial (2/5) — Config & prompts done, tools missing
+- ❌ **Phase 4: Streaming API** — Not started (0/4)
+- ⚠️ **Phase 5: React UI Foundation** — Partial (1/4) — Package setup only
+- ❌ **Phase 6: Graph UI** — Not started (0/4)
+- ⚠️ **Phase 7: Refinement** — Partial (1/4) — Autofix endpoint done
+- ❌ **Phase 8: Polish** — Not started (0/5)
+
+**Total:** 13/35 tasks completed (~37%)
+
+### Key Implementations
+- ✅ Complete repository layer with BaseRepo, GraphRepo, JobRepo, SolutionRepo, EdgeRepo
+- ✅ Full CRUD API routes for graphs (`/api/graphs`)
+- ✅ Validation engine with domain rule enforcement
+- ✅ Normalization & autofix utilities
+- ✅ Graph views (ui_v1 timeline, mermaid export)
+- ✅ AI SDK configuration and system prompts
+- ❌ AI tools (graph_create, small_jobs_generate, micro_jobs_generate) — **Missing**
+- ❌ Chat streaming endpoint (`/api/chat`) — **Missing**
+- ❌ React UI components — **Missing**
+
 ---
 
 ## Phase 1: Foundation
 
 Database repository layer and basic CRUD operations.
 
-- [ ] **Repository base class** — Generic CRUD with transaction support (depends on: schemas)
+- [x] **Repository base class** — Generic CRUD with transaction support (depends on: schemas)
   - Acceptance: `BaseRepo<T>` with `create`, `findById`, `update`, `delete`, `findMany`
   - All operations wrapped in transactions
   - Proper snake_case ↔ camelCase mapping
+  - ✅ **Implemented:** `apps/api/src/db/repo.ts`
 
-- [ ] **Graph repository** — Full CRUD for graphs table (depends on: repo base)
+- [x] **Graph repository** — Full CRUD for graphs table (depends on: repo base)
   - Acceptance: `GraphRepo` with all CRUD + `findBySegment`
   - Input validation via Zod schemas
   - Returns typed `Graph` objects
+  - ✅ **Implemented:** `apps/api/src/db/repos/graph.repo.ts`
 
-- [ ] **Job repository** — CRUD with hierarchy support (depends on: repo base)
+- [x] **Job repository** — CRUD with hierarchy support (depends on: repo base)
   - Acceptance: `JobRepo` with CRUD + `findByGraphId`, `findByParentId`, `findByLevel`
   - Bulk insert for AI-generated jobs
   - Sort order management
+  - ✅ **Implemented:** `apps/api/src/db/repos/job.repo.ts` (includes `createMany`, `reorder`, `insertAfter`, `getHierarchy`)
 
-- [ ] **Solution/Edge repositories** — Supporting entity CRUD (depends on: repo base)
+- [x] **Solution/Edge repositories** — Supporting entity CRUD (depends on: repo base)
   - Acceptance: `SolutionRepo`, `EdgeRepo` with full CRUD
   - Cascade-aware operations
+  - ✅ **Implemented:** `apps/api/src/db/repos/solution.repo.ts`, `apps/api/src/db/repos/edge.repo.ts`
 
-- [ ] **Basic routes setup** — Express-style router for Bun.serve (depends on: repos)
+- [x] **Basic routes setup** — Express-style router for Bun.serve (depends on: repos)
   - Acceptance: Router utility with path params, query parsing
   - `POST /api/graphs`, `GET /api/graphs/:id`, `DELETE /api/graphs/:id`
   - Proper error responses with `{ error: { code, message } }`
+  - ✅ **Implemented:** `apps/api/src/routes/router.ts`, `apps/api/src/routes/graphs.ts` (includes GET, POST, PATCH, DELETE)
 
 ---
 
@@ -42,25 +74,29 @@ Database repository layer and basic CRUD operations.
 
 Core business logic for job hierarchy validation and view generation.
 
-- [ ] **Validation engine** — Enforce domain rules (depends on: job repo)
+- [x] **Validation engine** — Enforce domain rules (depends on: job repo)
   - Acceptance: `validateGraph(graphId)` returns `{ valid, errors[] }`
   - Rules: 1st person formulation, infinitive labels, no "and", phase/cadence required
   - Job count validation (8-12 small, 3-6 micro per parent)
+  - ✅ **Implemented:** `apps/api/src/domain/validation.ts` (includes `validateGraph`, `isGraphValid`)
 
-- [ ] **Normalization utilities** — Fix common AI output issues (depends on: validation)
+- [x] **Normalization utilities** — Fix common AI output issues (depends on: validation)
   - Acceptance: `normalizeJob(job)` fixes formulation prefix, label format
   - Auto-trim, case normalization
   - Idempotent operations
+  - ✅ **Implemented:** `apps/api/src/domain/normalization.ts` (includes `normalizeJob`, `normalizeGraph`, `autofixGraph`)
 
-- [ ] **Graph view: ui_v1** — Timeline-ready JSON structure (depends on: job repo)
+- [x] **Graph view: ui_v1** — Timeline-ready JSON structure (depends on: job repo)
   - Acceptance: `GET /api/graphs/:id/view?mode=ui_v1`
   - Returns `{ graph, jobs: { before: [], during: [], after: [] }, stats }`
   - Nested micro jobs under small jobs
+  - ✅ **Implemented:** `apps/api/src/domain/graph-views.ts` (`generateUIv1View`), route in `apps/api/src/routes/graphs.ts`
 
-- [ ] **Graph view: mermaid** — Export as Mermaid flowchart (depends on: job repo, edge repo)
+- [x] **Graph view: mermaid** — Export as Mermaid flowchart (depends on: job repo, edge repo)
   - Acceptance: `GET /api/graphs/:id/view?mode=mermaid`
   - Returns valid Mermaid syntax with job hierarchy
   - Edge types as arrow styles
+  - ✅ **Implemented:** `apps/api/src/domain/graph-views.ts` (`generateMermaidView`), route supports mermaid mode
 
 ---
 
@@ -68,30 +104,35 @@ Core business logic for job hierarchy validation and view generation.
 
 AI SDK setup and tool definitions for job generation.
 
-- [ ] **AI SDK configuration** — OpenAI provider setup (depends on: none)
+- [x] **AI SDK configuration** — OpenAI provider setup (depends on: none)
   - Acceptance: `ai/config.ts` with model selection, API key from env
   - Temperature/token settings per use case
   - Error handling for API failures
+  - ✅ **Implemented:** `apps/api/src/ai/config.ts` (includes OpenAI provider, model configs, error class)
 
-- [ ] **System prompts** — Domain-aware prompts for job generation (depends on: none)
+- [x] **System prompts** — Domain-aware prompts for job generation (depends on: none)
   - Acceptance: `ai/prompts/` with `systemPrompt`, `smallJobsPrompt`, `microJobsPrompt`
   - Embed domain rules (1st person, phases, cadence)
   - Language-aware (support `language` param)
+  - ✅ **Implemented:** `apps/api/src/ai/prompts/system.ts` (includes `getSystemPrompt`, `getSmallJobsPrompt`, `getMicroJobsPrompt`)
 
 - [ ] **Tool: graph_create** — Initialize graph with core job (depends on: graph repo, prompts)
   - Acceptance: Creates graph + big job + core job records
   - Zod schema for tool params
   - Returns created graph ID
+  - ❌ **Not implemented:** AI tools directory structure exists but no tool implementations found
 
 - [ ] **Tool: small_jobs_generate** — Generate 8-12 small jobs (depends on: job repo, prompts)
   - Acceptance: `generateText` call with structured output
   - Creates jobs with phase, cadence, formulation, label
   - Links to core job as parent
+  - ❌ **Not implemented:** AI tools not found
 
 - [ ] **Tool: micro_jobs_generate** — Generate 3-6 micro jobs per small job (depends on: job repo)
   - Acceptance: Takes `smallJobId`, generates micro jobs
   - Inherits phase from parent
   - Maintains sort order
+  - ❌ **Not implemented:** AI tools not found
 
 ---
 
@@ -125,25 +166,29 @@ Real-time chat endpoint with tool execution events.
 
 Basic React app with chat integration.
 
-- [ ] **Vite + React setup** — Configure apps/web (depends on: none)
+- [~] **Vite + React setup** — Configure apps/web (depends on: none)
   - Acceptance: `bun run dev:web` starts on port 5173
   - TypeScript, path aliases configured
   - Proxy to API on 3001
+  - ⚠️ **Partially implemented:** `apps/web/package.json` exists with React/Vite deps, but no source files found
 
 - [ ] **ai-elements integration** — Install shadcn/ui chat components (depends on: Vite setup)
   - Acceptance: Chat UI components available
   - Tailwind configured
   - Dark mode support
+  - ❌ **Not implemented:** No UI components found
 
 - [ ] **useChat hook setup** — Connect to `/api/chat` (depends on: ai-elements, streaming API)
   - Acceptance: Messages stream in real-time
   - Tool calls visible in UI
   - Error states handled
+  - ❌ **Not implemented:** No chat endpoint or UI found
 
 - [ ] **Basic layout** — App shell with chat panel (depends on: ai-elements)
   - Acceptance: Responsive layout with sidebar
   - Chat takes primary focus
   - Clean, minimal design
+  - ❌ **Not implemented:** No UI components found
 
 ---
 
@@ -177,25 +222,29 @@ Visual job timeline and detail views.
 
 Validation, autofix, and edge case handling.
 
-- [ ] **Autofix endpoint** — Auto-correct validation errors (depends on: validation engine)
+- [x] **Autofix endpoint** — Auto-correct validation errors (depends on: validation engine)
   - Acceptance: `POST /api/graphs/:id/validate?autofix=1`
   - Fixes formulation prefix, label format
   - Returns diff of changes made
+  - ✅ **Implemented:** `apps/api/src/routes/graphs.ts` (POST /api/graphs/:id/validate with autofix support)
 
-- [ ] **Job manipulation tools** — Update, insert, reorder (depends on: job repo)
+- [~] **Job manipulation tools** — Update, insert, reorder (depends on: job repo)
   - Acceptance: `job_update`, `job_insert_after`, `job_reorder` tools
   - Maintain sort order integrity
   - Validate after changes
+  - ⚠️ **Partially implemented:** `JobRepo` has `reorder` and `insertAfter` methods, but no AI tools for these operations
 
 - [ ] **Error boundaries** — Graceful failure handling (depends on: all UI)
   - Acceptance: API errors show user-friendly messages
   - Stream interruptions recoverable
   - Retry mechanisms for transient failures
+  - ❌ **Not implemented:** No UI exists yet
 
 - [ ] **Edge case handling** — Empty states, limits (depends on: all features)
   - Acceptance: Empty graph state
   - Max job limits enforced
   - Duplicate detection
+  - ❌ **Not implemented:** Basic validation exists but edge cases not fully handled
 
 ---
 
