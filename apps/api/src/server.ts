@@ -5,6 +5,8 @@ const PORT = parseInt(process.env.PORT || "3001", 10);
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173").split(
   ","
 );
+const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || "60", 10);
+const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10);
 
 // Run migrations on startup
 console.log("Running database migrations...");
@@ -26,11 +28,18 @@ function getCorsHeaders(origin: string | null): Record<string, string> {
   return headers;
 }
 
-function addCorsHeaders(response: Response, origin: string | null): Response {
+function addCorsHeaders(
+  response: Response,
+  origin: string | null,
+  extraHeaders: Record<string, string> = {}
+): Response {
   const corsHeaders = getCorsHeaders(origin);
   const newHeaders = new Headers(response.headers);
 
   for (const [key, value] of Object.entries(corsHeaders)) {
+    newHeaders.set(key, value);
+  }
+  for (const [key, value] of Object.entries(extraHeaders)) {
     newHeaders.set(key, value);
   }
 
@@ -41,33 +50,104 @@ function addCorsHeaders(response: Response, origin: string | null): Response {
   });
 }
 
+/**
+ * Basic in-memory rate limiter for chat endpoint
+ */
+type RateBucket = { count: number; resetAt: number };
+const rateBuckets = new Map<string, RateBucket>();
+
+function getClientKey(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0].trim();
+  }
+  return "local";
+}
+
+function checkRateLimit(req: Request, url: URL): Response | null {
+  if (url.pathname !== "/api/chat" || RATE_LIMIT_MAX <= 0) {
+    return null;
+  }
+
+  const now = Date.now();
+  const key = `${getClientKey(req)}::chat`;
+  const bucket = rateBuckets.get(key);
+
+  if (!bucket || bucket.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return null;
+  }
+
+  if (bucket.count + 1 > RATE_LIMIT_MAX) {
+    const retryAfterSec = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+    return new Response(
+      JSON.stringify({
+        error: {
+          code: "RATE_LIMIT",
+          message: "Rate limit exceeded. Please retry later.",
+        },
+      }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(retryAfterSec),
+          "X-RateLimit-Limit": String(RATE_LIMIT_MAX),
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(bucket.resetAt),
+        },
+      }
+    );
+  }
+
+  bucket.count += 1;
+  rateBuckets.set(key, bucket);
+  return null;
+}
+
 const server = Bun.serve({
   port: PORT,
   async fetch(req) {
     const url = new URL(req.url);
     const origin = req.headers.get("Origin");
+    const requestId = crypto.randomUUID();
+    const start = performance.now();
+    let response: Response;
 
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
-      return new Response(null, {
+      const preflight = new Response(null, {
         status: 204,
         headers: getCorsHeaders(origin),
       });
+      return preflight;
     }
 
     // Health check endpoint
     if (url.pathname === "/health" && req.method === "GET") {
-      return addCorsHeaders(healthCheck(), origin);
+      response = healthCheck();
+    } else {
+      const limited = checkRateLimit(req, url);
+      if (limited) {
+        response = limited;
+      } else {
+        // Try registered routes
+        const handled = await handleRequest(req);
+        response = handled ?? notFound(url.pathname, req.method);
+      }
     }
 
-    // Try registered routes
-    const response = await handleRequest(req);
-    if (response) {
-      return addCorsHeaders(response, origin);
-    }
+    const durationMs = Math.round(performance.now() - start);
+    const responseWithCors = addCorsHeaders(response, origin, {
+      "X-Request-ID": requestId,
+      "X-Response-Time": `${durationMs}ms`,
+    });
 
-    // 404 for unmatched routes
-    return addCorsHeaders(notFound(url.pathname, req.method), origin);
+    console.log(
+      `[req ${requestId}] ${req.method} ${url.pathname} -> ${response.status} (${durationMs}ms)`
+    );
+
+    return responseWithCors;
   },
 });
 

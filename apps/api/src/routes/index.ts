@@ -4,12 +4,13 @@
 
 import { Router, json, notFound } from "./router";
 import { graphsRouter } from "./graphs";
+import { chatRouter } from "./chat";
 
 // Re-export utilities
 export { Router, json, errorResponse, parseBody, notFound } from "./router";
 
 // Combined router that handles all routes
-const routers = [graphsRouter];
+const routers = [graphsRouter, chatRouter];
 
 /**
  * Handle a request using all registered routers
