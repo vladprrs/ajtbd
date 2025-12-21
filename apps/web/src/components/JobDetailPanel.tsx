@@ -8,8 +8,6 @@ interface JobDetailPanelProps {
 }
 
 export function JobDetailPanel({ job, onClose }: JobDetailPanelProps) {
-  if (!job) return null;
-
   const panelRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
@@ -29,6 +27,8 @@ export function JobDetailPanel({ job, onClose }: JobDetailPanelProps) {
 
   // Trap focus within the panel and close on Escape
   useEffect(() => {
+    if (!job) return;
+
     const panelEl = panelRef.current;
 
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
@@ -76,6 +76,8 @@ export function JobDetailPanel({ job, onClose }: JobDetailPanelProps) {
       panelEl?.removeEventListener("keydown", handleTabTrap);
     };
   }, [job, onClose]);
+
+  if (!job) return null;
 
   return (
     <>
