@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Message content styling */
+.message-content {
+  @apply text-sm leading-relaxed;
+}
+
+.message-content p {
+  @apply mb-2 last:mb-0;
+}
+
+.message-content ul,
+.message-content ol {
+  @apply pl-4 mb-2;
+}
+
+.message-content li {
+  @apply mb-1;
+}
+
+.message-content code {
+  @apply bg-gray-100 px-1 py-0.5 rounded text-xs font-mono;
+}
+
+.message-content pre {
+  @apply bg-gray-100 p-2 rounded mb-2 overflow-x-auto;
+}
+
+.message-content pre code {
+  @apply bg-transparent p-0;
+}
