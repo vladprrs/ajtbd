@@ -1,0 +1,610 @@
+openapi: 3.1.0
+info:
+  title: AJTBD Job Graph API
+  description: API for AI-powered Jobs-to-be-Done graph generation and management
+  version: 0.1.0
+  contact:
+    name: AJTBD
+    url: https://github.com/vladprrs/ajtbd
+
+servers:
+  - url: http://localhost:3001
+    description: Local development server
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns server health status
+      operationId: healthCheck
+      tags: [System]
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+
+  /api/graphs:
+    get:
+      summary: List graphs
+      description: Get a paginated list of all graphs
+      operationId: listGraphs
+      tags: [Graphs]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: segment
+          in: query
+          description: Filter by segment (case-insensitive search)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of graphs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Graph'
+                  meta:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+
+    post:
+      summary: Create graph
+      description: Create a new job graph with segment and core job
+      operationId: createGraph
+      tags: [Graphs]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GraphInput'
+      responses:
+        '201':
+          description: Graph created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Graph'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/graphs/{id}:
+    get:
+      summary: Get graph
+      description: Get a single graph by ID
+      operationId: getGraph
+      tags: [Graphs]
+      parameters:
+        - $ref: '#/components/parameters/GraphId'
+      responses:
+        '200':
+          description: Graph details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Graph'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update graph
+      description: Update graph properties
+      operationId: updateGraph
+      tags: [Graphs]
+      parameters:
+        - $ref: '#/components/parameters/GraphId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                language:
+                  type: string
+                warningsJson:
+                  type: array
+                  items:
+                    type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Graph updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Graph'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete graph
+      description: Delete a graph and all its jobs
+      operationId: deleteGraph
+      tags: [Graphs]
+      parameters:
+        - $ref: '#/components/parameters/GraphId'
+      responses:
+        '200':
+          description: Graph deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/graphs/{id}/view:
+    get:
+      summary: Get graph view
+      description: Get a structured view of the graph for UI rendering or export
+      operationId: getGraphView
+      tags: [Graphs]
+      parameters:
+        - $ref: '#/components/parameters/GraphId'
+        - name: mode
+          in: query
+          description: View format
+          schema:
+            type: string
+            enum: [ui_v1, mermaid]
+            default: ui_v1
+      responses:
+        '200':
+          description: Graph view
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UIv1View'
+            text/plain:
+              schema:
+                type: string
+                description: Mermaid diagram syntax
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/graphs/{id}/validate:
+    post:
+      summary: Validate graph
+      description: Validate graph against domain rules, optionally applying autofix
+      operationId: validateGraph
+      tags: [Graphs]
+      parameters:
+        - $ref: '#/components/parameters/GraphId'
+        - name: autofix
+          in: query
+          description: Apply automatic fixes to validation errors
+          schema:
+            type: string
+            enum: ['0', '1', 'true', 'false']
+            default: '0'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/chat:
+    post:
+      summary: Chat with AI
+      description: Stream AI responses with tool execution for job generation
+      operationId: chat
+      tags: [Chat]
+      parameters:
+        - name: X-Session-ID
+          in: header
+          description: Session ID for context persistence
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: SSE stream of AI responses and tool results
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Data stream protocol events
+        '429':
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+            X-RateLimit-Reset:
+              schema:
+                type: integer
+
+  /api/chat/session:
+    get:
+      summary: Get session
+      description: Get current session state including active graph
+      operationId: getSession
+      tags: [Chat]
+      parameters:
+        - name: X-Session-ID
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                  graphId:
+                    type: string
+                    nullable: true
+                  language:
+                    type: string
+                  graph:
+                    type: object
+                    nullable: true
+                    properties:
+                      id:
+                        type: string
+                      segment:
+                        type: string
+                      coreJob:
+                        type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Clear session
+      description: Clear session and start fresh
+      operationId: deleteSession
+      tags: [Chat]
+      parameters:
+        - name: X-Session-ID
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+components:
+  parameters:
+    GraphId:
+      name: id
+      in: path
+      required: true
+      description: Graph UUID
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    GraphInput:
+      type: object
+      required: [segment, coreJob]
+      properties:
+        segment:
+          type: string
+          description: Target user segment
+          example: Software developers
+        coreJob:
+          type: string
+          description: Core job formulation
+          example: I want to deploy code faster
+        bigJob:
+          type: string
+          description: Optional big job formulation
+        language:
+          type: string
+          default: ru
+          enum: [ru, en]
+        options:
+          type: object
+          properties:
+            generateSmallJobs:
+              type: boolean
+              default: true
+            smallJobCount:
+              type: integer
+              minimum: 8
+              maximum: 12
+              default: 10
+
+    Graph:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        language:
+          type: string
+        inputJson:
+          type: object
+          properties:
+            segment:
+              type: string
+            coreJob:
+              type: string
+            bigJob:
+              type: string
+            options:
+              type: object
+        coreJobId:
+          type: string
+          format: uuid
+        bigJobId:
+          type: string
+          format: uuid
+          nullable: true
+        warningsJson:
+          type: array
+          items:
+            type: string
+          nullable: true
+        createdAt:
+          type: integer
+          description: Unix timestamp in milliseconds
+        updatedAt:
+          type: integer
+          description: Unix timestamp in milliseconds
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        graphId:
+          type: string
+          format: uuid
+        level:
+          type: string
+          enum: [big, core, small, micro]
+        parentId:
+          type: string
+          format: uuid
+          nullable: true
+        formulation:
+          type: string
+          description: First-person formulation ("I want to...")
+        label:
+          type: string
+          description: Infinitive verb label
+        phase:
+          type: string
+          enum: [before, during, after, unknown]
+        cadence:
+          type: string
+          enum: [once, repeat]
+        cadenceHint:
+          type: string
+          nullable: true
+        scoresJson:
+          $ref: '#/components/schemas/JobScores'
+        sortOrder:
+          type: integer
+        createdAt:
+          type: integer
+        updatedAt:
+          type: integer
+
+    JobScores:
+      type: object
+      nullable: true
+      properties:
+        userCost:
+          type: integer
+          minimum: 1
+          maximum: 10
+        userBenefit:
+          type: integer
+          minimum: 1
+          maximum: 10
+        costRationale:
+          type: string
+        benefitRationale:
+          type: string
+
+    UIv1View:
+      type: object
+      properties:
+        graph:
+          type: object
+          properties:
+            id:
+              type: string
+            segment:
+              type: string
+            coreJob:
+              type: string
+            language:
+              type: string
+        jobs:
+          type: object
+          properties:
+            before:
+              type: array
+              items:
+                $ref: '#/components/schemas/Job'
+            during:
+              type: array
+              items:
+                $ref: '#/components/schemas/Job'
+            after:
+              type: array
+              items:
+                $ref: '#/components/schemas/Job'
+        stats:
+          type: object
+          properties:
+            totalJobs:
+              type: integer
+            smallJobs:
+              type: integer
+            microJobs:
+              type: integer
+
+    ValidationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              jobId:
+                type: string
+              field:
+                type: string
+              message:
+                type: string
+              rule:
+                type: string
+        warnings:
+          type: array
+          items:
+            type: object
+        stats:
+          type: object
+        autofix:
+          type: object
+          properties:
+            applied:
+              type: boolean
+            changes:
+              type: array
+              items:
+                type: object
+
+    ChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [user, assistant, system]
+              content:
+                type: string
+        graphId:
+          type: string
+          format: uuid
+          description: Current graph context
+        language:
+          type: string
+          enum: [ru, en]
+          default: ru
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+tags:
+  - name: System
+    description: System health and status
+  - name: Graphs
+    description: Graph CRUD and views
+  - name: Chat
+    description: AI chat with tool execution

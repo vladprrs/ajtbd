@@ -1,5 +1,6 @@
 import { db, runMigrations } from "./db";
 import { handleRequest, healthCheck, notFound } from "./routes";
+import { logger } from "./utils/logger";
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || "http://localhost:5173").split(
@@ -9,9 +10,9 @@ const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || "60", 10);
 const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || "60000", 10);
 
 // Run migrations on startup
-console.log("Running database migrations...");
+logger.info("Running database migrations...");
 runMigrations();
-console.log("Migrations complete.");
+logger.info("Migrations complete.");
 
 function getCorsHeaders(origin: string | null): Record<string, string> {
   const headers: Record<string, string> = {
@@ -143,25 +144,23 @@ const server = Bun.serve({
       "X-Response-Time": `${durationMs}ms`,
     });
 
-    console.log(
-      `[req ${requestId}] ${req.method} ${url.pathname} -> ${response.status} (${durationMs}ms)`
-    );
+    logger.request(requestId, req.method, url.pathname, response.status, durationMs);
 
     return responseWithCors;
   },
 });
 
-console.log(`Server running at http://localhost:${server.port}`);
+logger.info(`Server running at http://localhost:${server.port}`);
 
 // Graceful shutdown
 process.on("SIGINT", () => {
-  console.log("\nShutting down...");
+  logger.info("Shutting down (SIGINT)...");
   db.close();
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
-  console.log("\nShutting down...");
+  logger.info("Shutting down (SIGTERM)...");
   db.close();
   process.exit(0);
 });

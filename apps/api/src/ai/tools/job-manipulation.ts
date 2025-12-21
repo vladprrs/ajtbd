@@ -115,7 +115,6 @@ export const jobInsertAfterTool = tool({
       soThat: job.soThat ?? null,
       suggestedNext: job.suggestedNext ?? null,
       scoresJson: job.scoresJson ?? null,
-      sortOrder: 0, // will be set by insertAfter
     });
 
     return {

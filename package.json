@@ -8,6 +8,9 @@
     "dev": "bun run --filter @ajtbd/api dev",
     "dev:web": "bun run --filter @ajtbd/web dev",
     "test": "bun test",
-    "migrate": "bun run --filter @ajtbd/api migrate"
+    "migrate": "bun run --filter @ajtbd/api migrate",
+    "typecheck": "bun run typecheck:api && bun run typecheck:web",
+    "typecheck:api": "cd apps/api && bun x tsc --noEmit",
+    "typecheck:web": "cd apps/web && bun x tsc --noEmit"
   }
 }

@@ -1,5 +1,5 @@
 import { useChat } from "@ai-sdk/react";
-import React, { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 interface ChatProps {
   onGraphCreated: (graphId: string) => void;
