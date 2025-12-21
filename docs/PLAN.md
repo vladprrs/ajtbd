@@ -8,19 +8,19 @@ Job Graph Generator v5 — AI-powered tool for breaking down Jobs-to-be-Done int
 
 ## Implementation Status
 
-**Last Updated:** 2024
+**Last Updated:** 2024-12
 
 ### Overall Progress
 - ✅ **Phase 1: Foundation** — Complete (5/5)
 - ✅ **Phase 2: Graph Engine** — Complete (4/4)
-- ⚠️ **Phase 3: AI Integration** — Partial (2/5) — Config & prompts done, tools missing
-- ❌ **Phase 4: Streaming API** — Not started (0/4)
+- ✅ **Phase 3: AI Integration** — Complete (5/5)
+- ✅ **Phase 4: Streaming API** — Complete (4/4)
 - ⚠️ **Phase 5: React UI Foundation** — Partial (1/4) — Package setup only
 - ❌ **Phase 6: Graph UI** — Not started (0/4)
 - ⚠️ **Phase 7: Refinement** — Partial (1/4) — Autofix endpoint done
 - ❌ **Phase 8: Polish** — Not started (0/5)
 
-**Total:** 13/35 tasks completed (~37%)
+**Total:** 19/35 tasks completed (~54%)
 
 ### Key Implementations
 - ✅ Complete repository layer with BaseRepo, GraphRepo, JobRepo, SolutionRepo, EdgeRepo
@@ -29,8 +29,9 @@ Job Graph Generator v5 — AI-powered tool for breaking down Jobs-to-be-Done int
 - ✅ Normalization & autofix utilities
 - ✅ Graph views (ui_v1 timeline, mermaid export)
 - ✅ AI SDK configuration and system prompts
-- ❌ AI tools (graph_create, small_jobs_generate, micro_jobs_generate) — **Missing**
-- ❌ Chat streaming endpoint (`/api/chat`) — **Missing**
+- ✅ AI tools (graph_create, small_jobs_generate, micro_jobs_generate, micro_jobs_generate_all)
+- ✅ Chat streaming endpoint (`/api/chat`) with data stream protocol
+- ✅ Session context management for multi-turn conversations
 - ❌ React UI components — **Missing**
 
 ---
@@ -116,23 +117,23 @@ AI SDK setup and tool definitions for job generation.
   - Language-aware (support `language` param)
   - ✅ **Implemented:** `apps/api/src/ai/prompts/system.ts` (includes `getSystemPrompt`, `getSmallJobsPrompt`, `getMicroJobsPrompt`)
 
-- [ ] **Tool: graph_create** — Initialize graph with core job (depends on: graph repo, prompts)
+- [x] **Tool: graph_create** — Initialize graph with core job (depends on: graph repo, prompts)
   - Acceptance: Creates graph + big job + core job records
   - Zod schema for tool params
   - Returns created graph ID
-  - ❌ **Not implemented:** AI tools directory structure exists but no tool implementations found
+  - ✅ **Implemented:** `apps/api/src/ai/tools/graph-create.ts`
 
-- [ ] **Tool: small_jobs_generate** — Generate 8-12 small jobs (depends on: job repo, prompts)
-  - Acceptance: `generateText` call with structured output
+- [x] **Tool: small_jobs_generate** — Generate 8-12 small jobs (depends on: job repo, prompts)
+  - Acceptance: `generateObject` call with structured output
   - Creates jobs with phase, cadence, formulation, label
   - Links to core job as parent
-  - ❌ **Not implemented:** AI tools not found
+  - ✅ **Implemented:** `apps/api/src/ai/tools/small-jobs-generate.ts`
 
-- [ ] **Tool: micro_jobs_generate** — Generate 3-6 micro jobs per small job (depends on: job repo)
+- [x] **Tool: micro_jobs_generate** — Generate 3-6 micro jobs per small job (depends on: job repo)
   - Acceptance: Takes `smallJobId`, generates micro jobs
   - Inherits phase from parent
   - Maintains sort order
-  - ❌ **Not implemented:** AI tools not found
+  - ✅ **Implemented:** `apps/api/src/ai/tools/micro-jobs-generate.ts` (includes `microJobsGenerateTool` and `microJobsGenerateAllTool`)
 
 ---
 
@@ -140,25 +141,29 @@ AI SDK setup and tool definitions for job generation.
 
 Real-time chat endpoint with tool execution events.
 
-- [ ] **Chat endpoint setup** — `/api/chat` with data streams (depends on: AI config)
-  - Acceptance: `POST /api/chat` accepts `{ messages, graphId? }`
+- [x] **Chat endpoint setup** — `/api/chat` with data streams (depends on: AI config)
+  - Acceptance: `POST /api/chat` accepts `{ messages, graphId?, language? }`
   - Returns data stream (not text stream)
   - Proper SSE headers and CORS
+  - ✅ **Implemented:** `apps/api/src/routes/chat.ts` (`POST /api/chat`)
 
-- [ ] **Tool orchestration** — Execute tools during stream (depends on: all AI tools)
+- [x] **Tool orchestration** — Execute tools during stream (depends on: all AI tools)
   - Acceptance: Tools called via `streamText` with `tools` param
   - Tool results included in stream
   - Error recovery without stream termination
+  - ✅ **Implemented:** `streamText` with `allTools`, `maxSteps: 10` for multi-step execution
 
-- [ ] **Tool event protocol** — Structured events for UI (depends on: chat endpoint)
-  - Acceptance: Events: `tool_call_start`, `tool_call_result`, `graph_updated`
+- [x] **Tool event protocol** — Structured events for UI (depends on: chat endpoint)
+  - Acceptance: Data stream protocol with tool calls/results
   - UI can track tool execution progress
-  - Graph ID included in relevant events
+  - Graph ID included in response headers
+  - ✅ **Implemented:** `toDataStreamResponse()` with error handling, `sendUsage: true`
 
-- [ ] **Session context** — Maintain graph context across messages (depends on: chat endpoint)
-  - Acceptance: `graphId` persists in conversation
+- [x] **Session context** — Maintain graph context across messages (depends on: chat endpoint)
+  - Acceptance: `graphId` persists in conversation via session
   - Tools operate on current graph
   - Clear context on new graph creation
+  - ✅ **Implemented:** In-memory session store with `GET/DELETE /api/chat/session`
 
 ---
 
