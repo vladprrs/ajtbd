@@ -16,11 +16,11 @@ Job Graph Generator v5 — AI-powered tool for breaking down Jobs-to-be-Done int
 - ✅ **Phase 3: AI Integration** — Complete (5/5)
 - ✅ **Phase 4: Streaming API** — Complete (4/4)
 - ✅ **Phase 5: React UI Foundation** — Complete (4/4)
-- ❌ **Phase 6: Graph UI** — Not started (0/4)
+- ✅ **Phase 6: Graph UI** — Complete (4/4)
 - ⚠️ **Phase 7: Refinement** — Partial (1/4) — Autofix endpoint done
 - ❌ **Phase 8: Polish** — Not started (0/5)
 
-**Total:** 22/35 tasks completed (~63%)
+**Total:** 26/35 tasks completed (~74%)
 
 ### Key Implementations
 - ✅ Complete repository layer with BaseRepo, GraphRepo, JobRepo, SolutionRepo, EdgeRepo
@@ -33,6 +33,9 @@ Job Graph Generator v5 — AI-powered tool for breaking down Jobs-to-be-Done int
 - ✅ Chat streaming endpoint (`/api/chat`) with data stream protocol
 - ✅ Session context management for multi-turn conversations
 - ✅ React UI with Chat component and GraphPanel
+- ✅ JobTimeline with phase-based columns and expandable micro jobs
+- ✅ JobDetailPanel with slide-out behavior and score visualization
+- ✅ Real-time updates via refresh trigger on tool completion
 
 ---
 
@@ -201,25 +204,29 @@ Basic React app with chat integration.
 
 Visual job timeline and detail views.
 
-- [ ] **JobTimeline component** — Phase-based job display (depends on: ui_v1 view)
+- [x] **JobTimeline component** — Phase-based job display (depends on: ui_v1 view)
   - Acceptance: Three columns: before/during/after
   - Jobs as cards with label, cadence icon
   - Expandable to show micro jobs
+  - ✅ **Implemented:** `apps/web/src/components/JobTimeline.tsx` with phase columns, job cards, score preview
 
-- [ ] **Job detail panel** — Full job information (depends on: JobTimeline)
+- [x] **Job detail panel** — Full job information (depends on: JobTimeline)
   - Acceptance: Click job → slide-out panel
   - Shows formulation, scores, solutions
   - Edit capability (future)
+  - ✅ **Implemented:** `apps/web/src/components/JobDetailPanel.tsx` with slide-out, user story format, micro jobs list
 
-- [ ] **Score display** — userCost/userBenefit visualization (depends on: detail panel)
+- [x] **Score display** — userCost/userBenefit visualization (depends on: detail panel)
   - Acceptance: Visual bars or gauges for 1-10 scores
   - Rationale text displayed
   - Color coding (high cost = red, high benefit = green)
+  - ✅ **Implemented:** `apps/web/src/components/ScoreDisplay.tsx` with progress bars, color coding, value ratio
 
-- [ ] **Real-time updates** — Graph changes reflect immediately (depends on: tool events)
+- [x] **Real-time updates** — Graph changes reflect immediately (depends on: tool events)
   - Acceptance: New jobs appear without refresh
   - Optimistic UI updates
   - Loading states during generation
+  - ✅ **Implemented:** `refreshTrigger` prop in GraphPanel, triggered on tool completion in Chat
 
 ---
 

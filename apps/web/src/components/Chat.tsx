@@ -3,10 +3,11 @@ import { useEffect, useRef, useState } from "react";
 
 interface ChatProps {
   onGraphCreated: (graphId: string) => void;
+  onGraphUpdated: () => void;
   currentGraphId: string | null;
 }
 
-export function Chat({ onGraphCreated, currentGraphId }: ChatProps) {
+export function Chat({ onGraphCreated, onGraphUpdated, currentGraphId }: ChatProps) {
   const [sessionId] = useState(() => crypto.randomUUID());
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -21,16 +22,21 @@ export function Chat({ onGraphCreated, currentGraphId }: ChatProps) {
         language: "ru",
       },
       onFinish: (message) => {
-        // Check for graph creation in tool calls
+        // Check for tool results
         if (message.toolInvocations) {
+          let graphUpdated = false;
           for (const tool of message.toolInvocations) {
-            if (
-              tool.state === "result" &&
-              tool.result?.success &&
-              tool.result?.graphId
-            ) {
-              onGraphCreated(tool.result.graphId);
+            if (tool.state === "result" && tool.result?.success) {
+              // New graph created
+              if (tool.result?.graphId) {
+                onGraphCreated(tool.result.graphId as string);
+              }
+              // Any successful tool means graph was updated
+              graphUpdated = true;
             }
+          }
+          if (graphUpdated) {
+            onGraphUpdated();
           }
         }
       },

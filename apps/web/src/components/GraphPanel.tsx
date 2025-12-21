@@ -1,76 +1,68 @@
-import { useEffect, useState } from "react";
-
-interface Job {
-  id: string;
-  label: string;
-  formulation: string;
-  phase: "before" | "during" | "after";
-  cadence: "once" | "repeat";
-  level: "big" | "core" | "small" | "micro";
-  microJobs?: Job[];
-}
-
-interface GraphView {
-  graph: {
-    id: string;
-    segment: string;
-    coreJob: string;
-    language: string;
-  };
-  jobs: {
-    before: Job[];
-    during: Job[];
-    after: Job[];
-  };
-  stats: {
-    totalJobs: number;
-    smallJobs: number;
-    microJobs: number;
-  };
-}
+import { useEffect, useState, useCallback } from "react";
+import type { Job, GraphView } from "../types";
+import { JobTimeline } from "./JobTimeline";
+import { JobDetailPanel } from "./JobDetailPanel";
 
 interface GraphPanelProps {
   graphId: string | null;
+  refreshTrigger?: number;
 }
 
-export function GraphPanel({ graphId }: GraphPanelProps) {
+export function GraphPanel({ graphId, refreshTrigger }: GraphPanelProps) {
   const [view, setView] = useState<GraphView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
-  useEffect(() => {
+  const fetchGraph = useCallback(async () => {
     if (!graphId) {
       setView(null);
       return;
     }
 
-    const fetchGraph = async () => {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      try {
-        const response = await fetch(`/api/graphs/${graphId}/view?mode=ui_v1`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch graph");
-        }
-        const data = await response.json();
-        setView(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
-      } finally {
-        setLoading(false);
+    try {
+      const response = await fetch(`/api/graphs/${graphId}/view?mode=ui_v1`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch graph");
       }
-    };
-
-    fetchGraph();
+      const data = await response.json();
+      setView(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
   }, [graphId]);
+
+  // Fetch on graphId change
+  useEffect(() => {
+    fetchGraph();
+  }, [fetchGraph]);
+
+  // Refetch on refresh trigger (e.g., after tool completes)
+  useEffect(() => {
+    if (refreshTrigger && refreshTrigger > 0) {
+      fetchGraph();
+    }
+  }, [refreshTrigger, fetchGraph]);
+
+  const handleJobSelect = useCallback((job: Job) => {
+    setSelectedJob(job);
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setSelectedJob(null);
+  }, []);
 
   if (!graphId) {
     return (
       <div className="h-full flex items-center justify-center text-gray-400">
         <div className="text-center">
           <svg
-            className="mx-auto h-12 w-12 text-gray-300"
+            className="mx-auto h-16 w-16 text-gray-200"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -78,21 +70,32 @@ export function GraphPanel({ graphId }: GraphPanelProps) {
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeWidth={1.5}
+              strokeWidth={1}
               d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"
             />
           </svg>
-          <p className="mt-2 text-sm">No graph selected</p>
-          <p className="text-xs">Create a graph using the chat</p>
+          <h3 className="mt-4 text-lg font-medium text-gray-500">No graph selected</h3>
+          <p className="mt-1 text-sm text-gray-400">
+            Start a conversation to create a job graph
+          </p>
+          <div className="mt-6 text-xs text-gray-400 max-w-xs mx-auto">
+            <p className="font-medium mb-2">Try asking:</p>
+            <p className="italic">
+              "Create a graph for software developers who want to deploy code faster"
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (loading) {
+  if (loading && !view) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-3 text-sm text-gray-500">Loading graph...</p>
+        </div>
       </div>
     );
   }
@@ -100,13 +103,23 @@ export function GraphPanel({ graphId }: GraphPanelProps) {
   if (error) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center text-red-500">
-          <p className="text-sm">{error}</p>
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 text-red-400">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <p className="mt-2 text-sm text-red-600">{error}</p>
           <button
-            onClick={() => window.location.reload()}
-            className="mt-2 text-xs text-blue-600 hover:underline"
+            onClick={fetchGraph}
+            className="mt-3 text-sm text-blue-600 hover:underline"
           >
-            Retry
+            Try again
           </button>
         </div>
       </div>
@@ -118,101 +131,24 @@ export function GraphPanel({ graphId }: GraphPanelProps) {
   }
 
   return (
-    <div className="p-6">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">
-          {view.graph.segment}
-        </h2>
-        <p className="text-sm text-gray-500 mt-1">{view.graph.coreJob}</p>
-        <div className="flex items-center space-x-4 mt-2 text-xs text-gray-400">
-          <span>{view.stats.smallJobs} small jobs</span>
-          <span>{view.stats.microJobs} micro jobs</span>
-        </div>
-      </div>
-
-      {/* Timeline */}
-      <div className="grid grid-cols-3 gap-6">
-        <PhaseColumn phase="before" jobs={view.jobs.before} />
-        <PhaseColumn phase="during" jobs={view.jobs.during} />
-        <PhaseColumn phase="after" jobs={view.jobs.after} />
-      </div>
-    </div>
-  );
-}
-
-interface PhaseColumnProps {
-  phase: "before" | "during" | "after";
-  jobs: Job[];
-}
-
-function PhaseColumn({ phase, jobs }: PhaseColumnProps) {
-  const phaseLabels = {
-    before: "Before",
-    during: "During",
-    after: "After",
-  };
-
-  const phaseColors = {
-    before: "border-orange-200 bg-orange-50",
-    during: "border-blue-200 bg-blue-50",
-    after: "border-green-200 bg-green-50",
-  };
-
-  return (
-    <div>
-      <h3 className="text-sm font-medium text-gray-700 mb-3">
-        {phaseLabels[phase]}
-        <span className="ml-2 text-gray-400 font-normal">({jobs.length})</span>
-      </h3>
-      <div className="space-y-3">
-        {jobs.map((job) => (
-          <JobCard key={job.id} job={job} phaseColor={phaseColors[phase]} />
-        ))}
-        {jobs.length === 0 && (
-          <p className="text-xs text-gray-400 italic">No jobs</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-interface JobCardProps {
-  job: Job;
-  phaseColor: string;
-}
-
-function JobCard({ job, phaseColor }: JobCardProps) {
-  const [expanded, setExpanded] = useState(false);
-  const hasMicroJobs = job.microJobs && job.microJobs.length > 0;
-
-  return (
-    <div className={`rounded-lg border p-3 ${phaseColor}`}>
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-gray-900 truncate">
-              {job.label}
-            </span>
-            {job.cadence === "repeat" && (
-              <span className="flex-shrink-0 text-xs text-gray-500" title="Recurring">
-                ↻
-              </span>
-            )}
+      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 bg-white">
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              {view.graph.segment}
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">{view.graph.coreJob}</p>
           </div>
-          <p className="text-xs text-gray-600 mt-1 line-clamp-2">
-            {job.formulation}
-          </p>
-        </div>
-        {hasMicroJobs && (
           <button
-            onClick={() => setExpanded(!expanded)}
-            className="ml-2 text-gray-400 hover:text-gray-600"
+            onClick={fetchGraph}
+            disabled={loading}
+            className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+            title="Refresh"
           >
             <svg
-              className={`w-4 h-4 transition-transform ${
-                expanded ? "rotate-180" : ""
-              }`}
+              className={`w-5 h-5 ${loading ? "animate-spin" : ""}`}
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -221,37 +157,43 @@ function JobCard({ job, phaseColor }: JobCardProps) {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M19 9l-7 7-7-7"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
           </button>
-        )}
+        </div>
+        <div className="flex items-center space-x-4 mt-3">
+          <Stat label="Small Jobs" value={view.stats.smallJobs} />
+          <Stat label="Micro Jobs" value={view.stats.microJobs} />
+          <Stat label="Total" value={view.stats.totalJobs} />
+        </div>
       </div>
 
-      {/* Micro jobs */}
-      {expanded && hasMicroJobs && (
-        <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
-          {job.microJobs!.map((micro) => (
-            <div
-              key={micro.id}
-              className="text-xs bg-white rounded px-2 py-1.5"
-            >
-              <div className="flex items-center space-x-1">
-                <span className="text-gray-700">{micro.label}</span>
-                {micro.cadence === "repeat" && (
-                  <span className="text-gray-400">↻</span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* Timeline */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <JobTimeline
+          jobs={view.jobs}
+          onJobSelect={handleJobSelect}
+          selectedJobId={selectedJob?.id}
+        />
+      </div>
 
-      {hasMicroJobs && !expanded && (
-        <p className="text-xs text-gray-400 mt-2">
-          {job.microJobs!.length} micro jobs
-        </p>
-      )}
+      {/* Detail Panel */}
+      <JobDetailPanel job={selectedJob} onClose={handleCloseDetail} />
+    </div>
+  );
+}
+
+interface StatProps {
+  label: string;
+  value: number;
+}
+
+function Stat({ label, value }: StatProps) {
+  return (
+    <div className="flex items-center space-x-1.5">
+      <span className="text-xs text-gray-500">{label}:</span>
+      <span className="text-sm font-medium text-gray-900">{value}</span>
     </div>
   );
 }
