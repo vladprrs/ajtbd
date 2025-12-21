@@ -157,69 +157,79 @@ export const microJobsGenerateAllTool = tool({
 
     let totalCreated = 0;
 
-    for (const smallJob of smallJobs) {
-      // Skip if already has micro jobs
-      const existingMicros = jobRepo.findByParentId(smallJob.id);
-      if (existingMicros.length > 0) {
-        results.push({
-          smallJobId: smallJob.id,
-          label: smallJob.label,
-          microJobsCreated: 0,
-          error: `Already has ${existingMicros.length} micro jobs`,
-        });
-        continue;
-      }
+    // Process small jobs in parallel batches to avoid long waits
+    const concurrency = 3;
+    const queue = [...smallJobs];
 
-      try {
-        const { object } = await generateObject({
-          model: models.structured,
-          schema: MicroJobsResponseSchema,
-          system: getSystemPrompt(graph.language),
-          prompt: getMicroJobsPrompt(
-            smallJob.label,
-            smallJob.formulation,
-            smallJob.phase,
-            graph.language,
-            countPerJob
-          ),
-          temperature: temperatures.generation,
-          maxTokens: maxTokens.generation,
-        });
+    while (queue.length > 0) {
+      const batch = queue.splice(0, concurrency);
+      const batchResults = await Promise.all(
+        batch.map(async (smallJob) => {
+          // Skip if already has micro jobs
+          const existingMicros = jobRepo.findByParentId(smallJob.id);
+          if (existingMicros.length > 0) {
+            return {
+              smallJobId: smallJob.id,
+              label: smallJob.label,
+              microJobsCreated: 0,
+              error: `Already has ${existingMicros.length} micro jobs`,
+            };
+          }
 
-        const createdJobs = jobRepo.createMany(
-          object.jobs.map((job, index) => ({
-            graphId: graph.id,
-            level: "micro" as const,
-            parentId: smallJob.id,
-            formulation: job.formulation,
-            label: job.label,
-            phase: smallJob.phase,
-            cadence: job.cadence,
-            cadenceHint: job.cadenceHint ?? null,
-            whenText: null,
-            want: null,
-            soThat: null,
-            suggestedNext: null,
-            scoresJson: null,
-            sortOrder: index,
-          }))
-        );
+          try {
+            const { object } = await generateObject({
+              model: models.structured,
+              schema: MicroJobsResponseSchema,
+              system: getSystemPrompt(graph.language),
+              prompt: getMicroJobsPrompt(
+                smallJob.label,
+                smallJob.formulation,
+                smallJob.phase,
+                graph.language,
+                countPerJob
+              ),
+              temperature: temperatures.generation,
+              maxTokens: maxTokens.generation,
+            });
 
-        totalCreated += createdJobs.length;
-        results.push({
-          smallJobId: smallJob.id,
-          label: smallJob.label,
-          microJobsCreated: createdJobs.length,
-        });
-      } catch (error) {
-        const aiError = wrapAIError(error);
-        results.push({
-          smallJobId: smallJob.id,
-          label: smallJob.label,
-          microJobsCreated: 0,
-          error: aiError.message,
-        });
-      }
+            const createdJobs = jobRepo.createMany(
+              object.jobs.map((job, index) => ({
+                graphId: graph.id,
+                level: "micro" as const,
+                parentId: smallJob.id,
+                formulation: job.formulation,
+                label: job.label,
+                phase: smallJob.phase,
+                cadence: job.cadence,
+                cadenceHint: job.cadenceHint ?? null,
+                whenText: null,
+                want: null,
+                soThat: null,
+                suggestedNext: null,
+                scoresJson: null,
+                sortOrder: index,
+              }))
+            );
+
+            totalCreated += createdJobs.length;
+            return {
+              smallJobId: smallJob.id,
+              label: smallJob.label,
+              microJobsCreated: createdJobs.length,
+            };
+          } catch (error) {
+            const aiError = wrapAIError(error);
+            return {
+              smallJobId: smallJob.id,
+              label: smallJob.label,
+              microJobsCreated: 0,
+              error: aiError.message,
+            };
+          }
+        })
+      );
+
+      results.push(...batchResults);
     }
 
     const successCount = results.filter((r) => r.microJobsCreated > 0).length;

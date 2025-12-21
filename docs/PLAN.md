@@ -17,10 +17,10 @@ Job Graph Generator v5 — AI-powered tool for breaking down Jobs-to-be-Done int
 - ✅ **Phase 4: Streaming API** — Complete (4/4)
 - ✅ **Phase 5: React UI Foundation** — Complete (4/4)
 - ✅ **Phase 6: Graph UI** — Complete (4/4)
-- ⚠️ **Phase 7: Refinement** — Partial (1/4) — Autofix endpoint done
-- ❌ **Phase 8: Polish** — Not started (0/5)
+- ⚠️ **Phase 7: Refinement** — Partial (2/4) — Autofix endpoint + job manipulation tools done
+- ⚠️ **Phase 8: Polish** — Partial (1/5) — Rate limiting done; request logging started
 
-**Total:** 26/35 tasks completed (~74%)
+**Total:** 28/35 tasks completed (~80%)
 
 ### Key Implementations
 - ✅ Complete repository layer with BaseRepo, GraphRepo, JobRepo, SolutionRepo, EdgeRepo
@@ -244,19 +244,19 @@ Validation, autofix, and edge case handling.
   - Acceptance: `job_update`, `job_insert_after`, `job_reorder` tools
   - Maintain sort order integrity
   - Validate after changes
-  - ⚠️ **Partially implemented:** `JobRepo` has `reorder` and `insertAfter` methods, but no AI tools for these operations
+  - ✅ **Implemented:** AI tools in `apps/api/src/ai/tools/job-manipulation.ts` and wired into `allTools`
 
-- [ ] **Error boundaries** — Graceful failure handling (depends on: all UI)
+- [~] **Error boundaries** — Graceful failure handling (depends on: all UI)
   - Acceptance: API errors show user-friendly messages
   - Stream interruptions recoverable
   - Retry mechanisms for transient failures
-  - ❌ **Not implemented:** No UI exists yet
+  - ⚠️ **Partial:** UI error boundary + chat retry/reset added; API/UI copy can be hardened further
 
-- [ ] **Edge case handling** — Empty states, limits (depends on: all features)
+- [~] **Edge case handling** — Empty states, limits (depends on: all features)
   - Acceptance: Empty graph state
   - Max job limits enforced
   - Duplicate detection
-  - ❌ **Not implemented:** Basic validation exists but edge cases not fully handled
+  - ⚠️ **Partial:** Small-job generation now blocks duplicates/over-limit; more duplicate detection needed
 
 ---
 
@@ -264,12 +264,13 @@ Validation, autofix, and edge case handling.
 
 Production readiness features.
 
-- [ ] **Request logging** — Structured logs for debugging (depends on: routes)
+- [~] **Request logging** — Structured logs for debugging (depends on: routes)
   - Acceptance: Request ID, duration, status logged
   - AI API calls logged (tokens, latency)
   - Log level configuration
+  - ⚠️ **Partial:** Request ID + duration logged in `server.ts`; token/AI-level logging + log levels pending
 
-- [ ] **Rate limiting** — Protect AI endpoints (depends on: chat endpoint)
+- [x] **Rate limiting** — Protect AI endpoints (depends on: chat endpoint)
   - Acceptance: Per-IP rate limits on `/api/chat`
   - Configurable limits via env
   - 429 responses with retry-after

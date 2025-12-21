@@ -16,11 +16,11 @@ export const graphCreateTool = tool({
     language: z.enum(["ru", "en"]).default("ru").describe("Language for job formulations"),
   }),
   execute: async ({ segment, coreJob, bigJob, language }) => {
-    // Generate IDs for jobs
+    // Generate placeholder IDs for the graph record (will update after job creation)
     const coreJobId = generateId();
     const bigJobId = bigJob ? generateId() : null;
 
-    // Create the graph
+    // Create the graph record first
     const graph = graphRepo.create({
       language,
       inputJson: {
@@ -33,27 +33,10 @@ export const graphCreateTool = tool({
       warningsJson: null,
     });
 
-    // Create the core job record
-    jobRepo.create({
-      graphId: graph.id,
-      level: "core",
-      parentId: bigJobId,
-      formulation: coreJob,
-      label: extractLabel(coreJob, language),
-      phase: "during",
-      cadence: "once",
-      cadenceHint: null,
-      whenText: null,
-      want: null,
-      soThat: null,
-      suggestedNext: null,
-      scoresJson: null,
-      sortOrder: 0,
-    });
-
-    // Create the big job record if provided
-    if (bigJob && bigJobId) {
-      jobRepo.create({
+    // Create parent big job (if provided) before core job to satisfy FK
+    let createdBigJobId: string | null = null;
+    if (bigJob) {
+      const createdBig = jobRepo.create({
         graphId: graph.id,
         level: "big",
         parentId: null,
@@ -69,13 +52,38 @@ export const graphCreateTool = tool({
         scoresJson: null,
         sortOrder: 0,
       });
+      createdBigJobId = createdBig.id;
     }
+
+    // Create the core job record (may reference big job as parent)
+    const createdCore = jobRepo.create({
+      graphId: graph.id,
+      level: "core",
+      parentId: createdBigJobId,
+      formulation: coreJob,
+      label: extractLabel(coreJob, language),
+      phase: "during",
+      cadence: "once",
+      cadenceHint: null,
+      whenText: null,
+      want: null,
+      soThat: null,
+      suggestedNext: null,
+      scoresJson: null,
+      sortOrder: 0,
+    });
+
+    // Update graph to point to the actual job IDs
+    graphRepo.update(graph.id, {
+      coreJobId: createdCore.id,
+      bigJobId: createdBigJobId,
+    });
 
     return {
       success: true,
       graphId: graph.id,
-      coreJobId,
-      bigJobId,
+      coreJobId: createdCore.id,
+      bigJobId: createdBigJobId,
       message: `Created graph for segment "${segment}" with core job "${coreJob}"`,
     };
   },

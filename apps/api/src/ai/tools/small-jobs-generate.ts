@@ -48,6 +48,18 @@ export const smallJobsGenerateTool = tool({
       };
     }
 
+    // Prevent duplicates and enforce max small jobs
+    const existingSmallJobs = jobRepo.findByLevel(graphId, "small");
+    if (existingSmallJobs.length > 0) {
+      const count = existingSmallJobs.length;
+      const countText = count >= 12 ? "at the maximum (12)" : `already has ${count}`;
+      return {
+        success: false,
+        error: `Graph ${countText} small jobs. Delete existing small jobs before regenerating.`,
+        existingJobIds: existingSmallJobs.map((j) => j.id),
+      };
+    }
+
     try {
       // Generate small jobs using AI
       const { object } = await generateObject({
