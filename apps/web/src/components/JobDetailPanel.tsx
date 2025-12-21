@@ -85,14 +85,6 @@ export function JobDetailPanel({ job, onClose }: JobDetailPanelProps) {
       <div
         className="fixed inset-0 bg-black/20 z-40"
         onClick={onClose}
-        tabIndex={0}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onClose();
-          }
-        }}
-        aria-label="Close details panel"
       />
 
       {/* Panel */}
